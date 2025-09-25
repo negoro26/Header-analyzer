@@ -19,7 +19,7 @@ def main():
         url = f"https://{url}"
 
     try:
-        response = requests.get(url, headers=client_headers)
+        response = requests.head(url, headers=client_headers)
         print(response.headers)
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
