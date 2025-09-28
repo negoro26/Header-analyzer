@@ -48,6 +48,7 @@ def make_request(url, timeout=10, insecure=False):
     except (requests.exceptions.RequestException, requests.exceptions.HTTPError):
         try:
             response = requests.get(
+                url,
                 headers=client_headers,
                 timeout=timeout,
                 verify=not insecure,
@@ -57,6 +58,58 @@ def make_request(url, timeout=10, insecure=False):
         except requests.exceptions.RequestException as e:
             raise e
 
+def analyze_security_headers(headers):
+    print("\n" + "=" * 60)
+    print("[+] Analyzing security headers...")
+    print("=" * 60)
+
+    present = []
+    missing = []
+
+    for header,description in security_headers.items():
+        if header in headers:
+            present.append((header, headers[header]))
+        else:
+            missing.append((header, description))
+
+    if present:
+        print("Security headers present:")
+        for header, value in present:
+            if header == 'X-Content-Type-Options' and value.lower() != 'nosniff':
+                print(f"  • {header} → {value} (should be 'nosniff')")
+            elif header == 'X-Frame-Options' and value.upper() not in ('DENY', 'SAMEORIGIN'):
+                print(f"  • {header} → {value} (should be 'DENY' or 'SAMEORIGIN')")
+            else:
+                print(f"  • {header} → {value}")
+    else:
+        print("All security headers missing")
+
+    if missing:
+        print("Security headers missing:")
+        for header, description in missing:
+            print(f"  • {header} → {description}")
+    else:
+        print("All security headers present")
+
+def analyze_sensitive_headers(headers):
+    print("\n" + "=" * 60)
+    print("[+] Analyzing sensitive headers...")
+    print("=" * 60)
+
+    found = []
+    for header in sensitive_headers:
+        if header in headers:
+            found.append((header, headers[header]))
+
+    if found:
+        print("Potentially sensitive headers found:")
+        for header, value in found:
+            print(f"  • {header}: {value}")
+        print("These headers might reveal technology, version or framework details")
+    else:
+        print("[+] No sensitive headers present")
+
+
 def print_headers(headers):
     print("\n" + "=" * 60)
     print("[+] RAW RESPONSE HEADERS")
@@ -64,23 +117,35 @@ def print_headers(headers):
     for key, value in headers.items():
         print(f"{key}: {value}")
 
-
 def main():
-
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
         description='HTTP Header Security Analyzer'
         )
+    parser.add_argument('url', help='Target URL to scan')
+    parser.add_argument('--insecure', '-k', action='store_true',
+                        help='Skip SSL certificate verification')
+    parser.add_argument('--timeout', type=int, default=10,
+                        help='Request timeout in seconds (default: 10)')
 
     args = parser.parse_args()
     url = validate_url(args.url.strip())
 
     try:
         response = make_request(url, insecure=args.insecure, timeout=args.timeout)
+
+        print(f"[+] Target: {url}")
+        print(f"[+] Status Code: {response.status_code}")
+        if response.history:
+            print(f"[+] Redirected {len(response.history)} times")
+            print(f"    Final URL: {response.url}")
+
         print_headers(response.headers)
+        analyze_security_headers(response.headers)
+        analyze_sensitive_headers(response.headers)
 
         print("\n" + "=" * 60)
-        print("Scan completed successfully!")
+        print("[+] Scan completed successfully!")
         print("=" * 60)
     except requests.exceptions.SSLError as e:
         print(f"[!] SSL Error: {e}")
