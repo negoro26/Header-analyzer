@@ -33,23 +33,24 @@ def validate_url(url):
         url = f"https://{url}"
     return url
 
-def make_request(url, timeout=10, insecure=False):
+def make_request(url, timeout=10, insecure=False, headers=None):
+    effective_headers = headers or client_headers
     try:
         response = requests.head(
             url,
-            headers=client_headers,
+            headers=effective_headers,
             timeout=timeout,
             verify=not insecure,
             allow_redirects=True
         )
-        if response.status_code in (400, 403, 405, 501):
-            raise requests.exceptions.RequestException("HEAD most likely not supported")
+        if not response.ok:
+            raise requests.exceptions.RequestException(f"HEAD not OK: {response.status_code}")
         return response
     except (requests.exceptions.RequestException, requests.exceptions.HTTPError):
         try:
             response = requests.get(
                 url,
-                headers=client_headers,
+                headers=effective_headers,
                 timeout=timeout,
                 verify=not insecure,
                 allow_redirects=True
@@ -117,6 +118,30 @@ def print_headers(headers):
     for key, value in headers.items():
         print(f"{key}: {value}")
 
+
+def build_client_headers(args):
+    """Build the request headers from CLI options.
+
+    - Starts from built-in client_headers unless --no-default-headers is set
+    - Applies --user-agent if provided
+    - Applies any number of --header/-H "Key: Value" overrides
+    """
+    headers = {} if args.no_default_headers else dict(client_headers)
+    if getattr(args, 'user_agent', None):
+        headers['User-Agent'] = args.user_agent
+    for item in getattr(args, 'header', []) or []:
+        if ':' not in item:
+            print(f"[!] Ignoring invalid header (expected 'Key: Value'): {item}", file=sys.stderr)
+            continue
+        key, value = item.split(':', 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            print(f"[!] Ignoring header with empty key: {item}", file=sys.stderr)
+            continue
+        headers[key] = value
+    return headers
+
 def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
@@ -127,12 +152,19 @@ def main():
                         help='Skip SSL certificate verification')
     parser.add_argument('--timeout', type=int, default=10,
                         help='Request timeout in seconds (default: 10)')
+    parser.add_argument('--user-agent', dest='user_agent',
+                        help='Override User-Agent header')
+    parser.add_argument('--header', '-H', action='append', default=[],
+                        help='Custom request header, e.g., -H "Key: Value". Repeat to add multiple.')
+    parser.add_argument('--no-default-headers', action='store_true',
+                        help='Do not include built-in client headers (start from empty set)')
 
     args = parser.parse_args()
     url = validate_url(args.url.strip())
 
     try:
-        response = make_request(url, insecure=args.insecure, timeout=args.timeout)
+        resolved_headers = build_client_headers(args)
+        response = make_request(url, insecure=args.insecure, timeout=args.timeout, headers=resolved_headers)
 
         print(f"[+] Target: {url}")
         print(f"[+] Status Code: {response.status_code}")
