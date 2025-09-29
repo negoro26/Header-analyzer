@@ -120,13 +120,10 @@ def print_headers(headers):
 
 
 def build_client_headers(args):
-    """Build the request headers from CLI options.
-
-    - Starts from built-in client_headers unless --no-default-headers is set
-    - Applies --user-agent if provided
-    - Applies any number of --header/-H "Key: Value" overrides
-    """
-    headers = {} if args.no_default_headers else dict(client_headers)
+    if args.no_default_headers:
+        headers = {}
+    else:
+        headers = dict(client_headers) # make a dictionary copy
     if getattr(args, 'user_agent', None):
         headers['User-Agent'] = args.user_agent
     for item in getattr(args, 'header', []) or []:
