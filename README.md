@@ -121,7 +121,3 @@ Recommended local run:
 .\.venv\Scripts\Activate.ps1
 python header_scanner.py https://example.com
 ```
-
-## License
-
-Add your license of choice (e.g., MIT) as LICENSE in the repo and reference it here.
