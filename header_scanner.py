@@ -1,6 +1,7 @@
 import sys
 import requests
 import argparse
+import json
 
 client_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
@@ -111,12 +112,21 @@ def analyze_sensitive_headers(headers):
         print("[+] No sensitive headers present")
 
 
-def print_headers(headers):
-    print("\n" + "=" * 60)
-    print("[+] RAW RESPONSE HEADERS")
-    print("=" * 60)
-    for key, value in headers.items():
-        print(f"{key}: {value}")
+def print_headers(headers, as_json=False):
+    if as_json:
+        print("\n" + "=" * 60)
+        print("[+] RAW RESPONSE HEADERS (AS JSON)")
+        print("=" * 60)
+
+        headers_dict = dict(headers)
+        print(json.dumps(headers_dict, indent=4, sort_keys=True))
+    else:
+        print("\n" + "=" * 60)
+        print("[+] RAW RESPONSE HEADERS")
+        print("=" * 60)
+
+        for key, value in headers.items():
+            print(f"{key}: {value}")
 
 
 def build_client_headers(args):
@@ -139,12 +149,16 @@ def build_client_headers(args):
         headers[key] = value
     return headers
 
+
 def main():
+
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
         description='HTTP Header Security Analyzer'
         )
-    parser.add_argument('url', help='Target URL to scan')
+    
+    parser.add_argument('url',
+                        help='Target URL to scan')
     parser.add_argument('--insecure', '-k', action='store_true',
                         help='Skip SSL certificate verification')
     parser.add_argument('--timeout', type=int, default=10,
@@ -155,9 +169,13 @@ def main():
                         help='Custom request header, e.g., -H "Key: Value". Repeat to add multiple.')
     parser.add_argument('--no-default-headers', action='store_true',
                         help='Do not include built-in client headers (start from empty set)')
+    parser.add_argument('--json', action='store_true',
+                        help='Output results as JSON')
+
 
     args = parser.parse_args()
     url = validate_url(args.url.strip())
+
 
     try:
         resolved_headers = build_client_headers(args)
@@ -169,7 +187,7 @@ def main():
             print(f"[+] Redirected {len(response.history)} times")
             print(f"    Final URL: {response.url}")
 
-        print_headers(response.headers)
+        print_headers(response.headers, as_json=args.json)
         analyze_security_headers(response.headers)
         analyze_sensitive_headers(response.headers)
 
