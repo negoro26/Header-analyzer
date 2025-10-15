@@ -63,6 +63,8 @@ Options:
   - Add a custom request header (repeatable).
 - --no-default-headers
   - Do not include the built-in client headers (start from an empty set).
+- --json
+  - Print prettified json headers, instead of raw response text.
 
 Examples:
 
